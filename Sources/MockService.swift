@@ -9,7 +9,7 @@ open class MockService: NSObject {
   fileprivate let provider: String
   fileprivate let consumer: String
   fileprivate let pactVerificationService: PactVerificationService
-  var interactions: [Interaction] = []
+  public var interactions: [Interaction] = []
 
   @objc
   open var baseUrl: String {
