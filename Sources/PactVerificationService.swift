@@ -1,20 +1,20 @@
-import Foundation
 import Alamofire
 import BrightFutures
+import Foundation
 
 open class PactVerificationService {
     open var baseUrl: String {
         return Router.baseURLString
     }
-    
+
     enum Router: URLRequestConvertible {
         static var baseURLString = "http://example.com"
-        
-        case clean()
+
+        case clean
         case setup([String: Any])
-        case verify()
+        case verify
         case write([String: [String: String]])
-        
+
         var method: HTTPMethod {
             switch self {
             case .clean:
@@ -27,7 +27,7 @@ open class PactVerificationService {
                 return .post
             }
         }
-        
+
         var path: String {
             switch self {
             case .clean:
@@ -40,98 +40,99 @@ open class PactVerificationService {
                 return "/pact"
             }
         }
-        
+
         // MARK: URLRequestConvertible
+
         func asURLRequest() throws -> URLRequest {
             let url = try Router.baseURLString.asURL()
             var urlRequest = URLRequest(url: url.appendingPathComponent(path))
             urlRequest.httpMethod = method.rawValue
             urlRequest.setValue("true", forHTTPHeaderField: "X-Pact-Mock-Service")
-            
+
             switch self {
-            case .setup(let parameters):
+            case let .setup(parameters):
                 return try JSONEncoding.default.encode(urlRequest, with: parameters)
-            case .write(let parameters):
+            case let .write(parameters):
                 return try JSONEncoding.default.encode(urlRequest, with: parameters)
             default:
                 return urlRequest
             }
         }
     }
-    
+
     public init(url: String = "http://localhost:1234") {
         Router.baseURLString = url
     }
-    
+
     func setup(_ interactions: [Interaction]) -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        self.clean().onSuccess { _ in
+        clean().onSuccess { _ in
             promise.completeWith(self.setupInteractions(interactions))
-            }.onFailure { error in
-                promise.failure(error)
+        }.onFailure { error in
+            promise.failure(error)
         }
-        
+
         return promise.future
     }
-    
+
     func verify(provider: String, consumer: String) -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        self.verifyInteractions().onSuccess { _ in
+        verifyInteractions().onSuccess { _ in
             promise.completeWith(self.write(provider: provider, consumer: consumer))
-            }.onFailure { error in
-                promise.failure(error)
+        }.onFailure { error in
+            promise.failure(error)
         }
-        
+
         return promise.future
     }
-    
-    fileprivate func verifyInteractions() -> Future<String, NSError> {
+
+    private func verifyInteractions() -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        Alamofire.request(Router.verify())
+        Alamofire.request(Router.verify)
             .validate()
             .responseString { response in self.requestHandler(promise)(response) }
-        
+
         return promise.future
     }
-    
-    fileprivate func write(provider: String, consumer: String) -> Future<String, NSError> {
+
+    private func write(provider: String, consumer: String) -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        
-        Alamofire.request(Router.write(["consumer": [ "name": consumer ],
-                                        "provider": [ "name": provider ]]))
+
+        Alamofire.request(Router.write(["consumer": ["name": consumer],
+                                        "provider": ["name": provider]]))
             .validate()
             .responseString { response in self.requestHandler(promise)(response) }
-        
+
         return promise.future
     }
-    
-    fileprivate func clean() -> Future<String, NSError> {
+
+    private func clean() -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        
-        Alamofire.request(Router.clean())
+
+        Alamofire.request(Router.clean)
             .validate()
             .responseString { response in self.requestHandler(promise)(response) }
-        
+
         return promise.future
     }
-    
-    fileprivate func setupInteractions (_ interactions: [Interaction]) -> Future<String, NSError> {
+
+    private func setupInteractions(_ interactions: [Interaction]) -> Future<String, NSError> {
         let promise = Promise<String, NSError>()
-        let payload: [String: Any] = ["interactions": interactions.map({ $0.payload() }),
+        let payload: [String: Any] = ["interactions": interactions.map { $0.payload() },
                                       "example_description": "description"]
         Alamofire.request(Router.setup(payload))
             .validate()
             .responseString { response in self.requestHandler(promise)(response) }
-        
+
         return promise.future
     }
-    
+
     func requestHandler(_ promise: Promise<String, NSError>) -> (DataResponse<String>) -> Void {
         return { response in
             switch response.result {
-            case .success(let responseValue):
+            case let .success(responseValue):
                 promise.success(responseValue)
-            case .failure(let error):
+            case let .failure(error):
                 let errorMessage: String
                 if let errorBody = response.data {
                     errorMessage = "\(String(data: errorBody, encoding: String.Encoding.utf8)!)"
